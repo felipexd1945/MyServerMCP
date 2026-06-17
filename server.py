@@ -1,65 +1,69 @@
-import os
-import httpx
 from mcp.server.fastmcp import FastMCP
-from starlette.middleware.cors import CORSMiddleware
+import httpx
 
-port = int(os.environ.get("PORT", 8000))
-mcp = FastMCP("PokeAPI Bridge", host="0.0.0.0", port=port)
+mcp = FastMCP("Pokemon MCP Bridge")
 
-POKEAPI_BASE = "https://pokeapi.co/api/v2"
+POKEAPI = "https://pokeapi.co/api/v2"
 
 
 @mcp.tool()
 def get_pokemon(name: str) -> dict:
-    """
-    Busca dados de um Pokemon pelo nome (ex: 'pikachu').
-    Retorna id, altura, peso, tipos e status base (hp, attack, defense, etc).
-    """
-    with httpx.Client(timeout=10) as client:
-        resp = client.get(f"{POKEAPI_BASE}/pokemon/{name.lower().strip()}")
-        if resp.status_code != 200:
-            return {"error": f"Pokemon '{name}' nao encontrado"}
-        data = resp.json()
-        return {
-            "id": data["id"],
-            "name": data["name"],
-            "height_decimeters": data["height"],
-            "weight_hectograms": data["weight"],
-            "types": [t["type"]["name"] for t in data["types"]],
-            "stats": {s["stat"]["name"]: s["base_stat"] for s in data["stats"]},
-        }
+    """Get basic Pokemon data"""
 
+    r = httpx.get(
+        f"{POKEAPI}/pokemon/{name.lower().strip()}",
+        timeout=10
+    )
 
-@mcp.tool()
-def compare_pokemon(name1: str, name2: str) -> dict:
-    """Compara o status base (stats) de dois Pokemon, lado a lado."""
+    if r.status_code != 200:
+        return {"error": "pokemon not found"}
+
+    data = r.json()
+
     return {
-        "pokemon_1": get_pokemon(name1),
-        "pokemon_2": get_pokemon(name2),
+        "id": data["id"],
+        "name": data["name"],
+        "types": [
+            t["type"]["name"]
+            for t in data["types"]
+        ],
+        "height": data["height"],
+        "weight": data["weight"]
     }
 
 
 @mcp.tool()
-def get_pokemon_by_type(pokemon_type: str, limit: int = 5) -> dict:
-    """Lista alguns Pokemon de um tipo especifico (ex: 'fire', 'water', 'electric')."""
-    with httpx.Client(timeout=10) as client:
-        resp = client.get(f"{POKEAPI_BASE}/type/{pokemon_type.lower().strip()}")
-        if resp.status_code != 200:
-            return {"error": f"Tipo '{pokemon_type}' nao encontrado"}
-        data = resp.json()
-        names = [p["pokemon"]["name"] for p in data["pokemon"][:limit]]
-        return {"type": pokemon_type, "pokemon": names}
+def compare_pokemon(name1: str, name2: str) -> dict:
+    """Compare two Pokémon"""
+
+    return {
+        "pokemon_1": get_pokemon(name1),
+        "pokemon_2": get_pokemon(name2)
+    }
 
 
-# Expõe o servidor MCP via Streamable HTTP (exigido pelo Agentforce)
+@mcp.tool()
+def get_pokemon_by_type(pokemon_type: str) -> dict:
+    """Get Pokémon by type"""
+
+    r = httpx.get(
+        f"{POKEAPI}/type/{pokemon_type.lower().strip()}",
+        timeout=10
+    )
+
+    if r.status_code != 200:
+        return {"error": "type not found"}
+
+    data = r.json()
+
+    return {
+        "type": pokemon_type,
+        "pokemon": [
+            p["pokemon"]["name"]
+            for p in data["pokemon"][:10]
+        ]
+    }
+
+
+# ✅ CRÍTICO: export correto para Streamable HTTP (Agentforce MCP)
 app = mcp.streamable_http_app()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=port)

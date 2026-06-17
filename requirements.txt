@@ -1,4 +1,4 @@
 mcp[cli]
+httpx
 uvicorn
 starlette
-httpx
