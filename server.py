@@ -1,7 +1,10 @@
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 port = int(os.environ.get("PORT", 8000))
 mcp = FastMCP("PokeAPI Bridge", host="0.0.0.0", port=port)
@@ -51,8 +54,16 @@ def get_pokemon_by_type(pokemon_type: str, limit: int = 5) -> dict:
         return {"type": pokemon_type, "pokemon": names}
 
 
-# Expõe o servidor MCP via Streamable HTTP (exigido pelo Agentforce)
-app = mcp.streamable_http_app()
+async def health(request):
+    return JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
+
+
+mcp_asgi = mcp.streamable_http_app()
+
+app = Starlette(routes=[
+    Route("/", health),
+    Mount("/", app=mcp_asgi),
+])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
