@@ -1,10 +1,8 @@
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP
-from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
 
 port = int(os.environ.get("PORT", 8000))
 mcp = FastMCP("PokeAPI Bridge", host="0.0.0.0", port=port)
@@ -54,22 +52,22 @@ def get_pokemon_by_type(pokemon_type: str, limit: int = 5) -> dict:
         return {"type": pokemon_type, "pokemon": names}
 
 
-async def health(request):
-    return JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
-
-
-mcp_asgi = mcp.streamable_http_app()
-
-app = Starlette(routes=[
-    Route("/", health),
-    Mount("/", app=mcp_asgi),
-])
-app.add_middleware(
+_mcp_asgi = mcp.streamable_http_app()
+_mcp_asgi.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+async def app(scope, receive, send):
+    if scope["type"] == "http" and scope["path"] == "/":
+        response = JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
+        await response(scope, receive, send)
+    else:
+        await _mcp_asgi(scope, receive, send)
+
 
 if __name__ == "__main__":
     import uvicorn
