@@ -151,11 +151,17 @@ _lifespan_app = Starlette(lifespan=_lifespan, routes=[])
 async def _main_app(scope, receive, send):
     if scope["type"] == "lifespan":
         await _lifespan_app(scope, receive, send)
-    elif scope["type"] == "http" and scope.get("path") == "/":
-        response = JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
-        await response(scope, receive, send)
+    elif scope["type"] == "http":
+        path = scope.get("path", "")
+        if path == "/":
+            response = JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
+            await response(scope, receive, send)
+        else:
+            stripped = path[len("/mcp"):] if path.startswith("/mcp") else path
+            new_scope = {**scope, "path": stripped or "/"}
+            await session_manager.handle_request(new_scope, receive, send)
     else:
-        await session_manager.handle_request(scope, receive, send)
+        await _lifespan_app(scope, receive, send)
 
 
 app = CORSMiddleware(
