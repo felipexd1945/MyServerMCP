@@ -137,7 +137,7 @@ session_manager = StreamableHTTPSessionManager(
 )
 
 _mcp_starlette = Starlette(
-    routes=[Mount("/mcp", app=session_manager.handle_post_request)],
+    routes=[Mount("/mcp", app=session_manager.handle_request)],
     lifespan=session_manager.lifespan,
 )
 _mcp_starlette.add_middleware(
