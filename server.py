@@ -4,6 +4,7 @@ import httpx
 import mcp.types as types
 from mcp.server import Server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -136,9 +137,15 @@ session_manager = StreamableHTTPSessionManager(
     json_response=False,
 )
 
+@asynccontextmanager
+async def lifespan(app):
+    async with session_manager.run():
+        yield
+
+
 _mcp_starlette = Starlette(
     routes=[Mount("/mcp", app=session_manager.handle_request)],
-    lifespan=session_manager.lifespan,
+    lifespan=lifespan,
 )
 _mcp_starlette.add_middleware(
     CORSMiddleware,
