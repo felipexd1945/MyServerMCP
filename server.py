@@ -127,7 +127,10 @@ async def call_tool(name: str, arguments: dict):
     else:
         result = {"error": f"Unknown tool: {name}"}
 
-    return [types.TextContent(type="text", text=json.dumps(result))]
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=json.dumps(result))],
+        structuredContent=result,
+    )
 
 
 session_manager = StreamableHTTPSessionManager(
