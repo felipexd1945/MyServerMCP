@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from starlette.routing import Mount
 
 port = int(os.environ.get("PORT", 8000))
 
@@ -138,29 +137,30 @@ session_manager = StreamableHTTPSessionManager(
 )
 
 @asynccontextmanager
-async def lifespan(app):
+async def _lifespan(app):
     async with session_manager.run():
         yield
 
 
-_mcp_starlette = Starlette(
-    routes=[Mount("/mcp", app=session_manager.handle_request)],
-    lifespan=lifespan,
-)
-_mcp_starlette.add_middleware(
-    CORSMiddleware,
+_lifespan_app = Starlette(lifespan=_lifespan, routes=[])
+
+
+async def _main_app(scope, receive, send):
+    if scope["type"] == "lifespan":
+        await _lifespan_app(scope, receive, send)
+    elif scope["type"] == "http" and scope.get("path") == "/":
+        response = JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
+        await response(scope, receive, send)
+    else:
+        await session_manager.handle_request(scope, receive, send)
+
+
+app = CORSMiddleware(
+    app=_main_app,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-async def app(scope, receive, send):
-    if scope["type"] == "http" and scope["path"] == "/":
-        response = JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
-        await response(scope, receive, send)
-    else:
-        await _mcp_starlette(scope, receive, send)
 
 
 if __name__ == "__main__":
