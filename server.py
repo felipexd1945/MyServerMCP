@@ -153,7 +153,7 @@ async def _main_app(scope, receive, send):
         await _lifespan_app(scope, receive, send)
     elif scope["type"] == "http":
         path = scope.get("path", "")
-        if path == "/":
+        if path == "/" and scope.get("method") == "GET":
             response = JSONResponse({"status": "ok", "server": "PokeAPI MCP Bridge"})
             await response(scope, receive, send)
         else:
