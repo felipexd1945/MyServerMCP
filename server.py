@@ -102,12 +102,11 @@ def _fetch_pokemon(name: str) -> dict:
         }
 
 
-@server.call_tool()
-async def call_tool(name: str, arguments: dict):
+def _run_tool(name: str, arguments: dict) -> dict:
     if name == "get_pokemon":
-        result = _fetch_pokemon(arguments["name"])
+        return _fetch_pokemon(arguments["name"])
     elif name == "compare_pokemon":
-        result = {
+        return {
             "pokemon_1": _fetch_pokemon(arguments["name1"]),
             "pokemon_2": _fetch_pokemon(arguments["name2"]),
         }
@@ -117,17 +116,28 @@ async def call_tool(name: str, arguments: dict):
         with httpx.Client(timeout=10) as client:
             resp = client.get(f"{POKEAPI_BASE}/type/{pokemon_type.lower().strip()}")
             if resp.status_code != 200:
-                result = {"error": f"Type '{pokemon_type}' not found"}
-            else:
-                data = resp.json()
-                result = {
-                    "type": pokemon_type,
-                    "pokemon": [p["pokemon"]["name"] for p in data["pokemon"][:limit]],
-                }
+                return {"error": f"Type '{pokemon_type}' not found"}
+            data = resp.json()
+            return {
+                "type": pokemon_type,
+                "pokemon": [p["pokemon"]["name"] for p in data["pokemon"][:limit]],
+            }
     else:
-        result = {"error": f"Unknown tool: {name}"}
+        return {"error": f"Unknown tool: {name}"}
 
-    return [types.TextContent(type="text", text=json.dumps(result))]
+
+async def _call_tool_handler(req: types.CallToolRequest) -> types.ServerResult:
+    result = _run_tool(req.params.name, req.params.arguments or {})
+    return types.ServerResult(
+        types.CallToolResult(
+            content=[types.TextContent(type="text", text=json.dumps(result))],
+            structuredContent=result,
+            isError=False,
+        )
+    )
+
+
+server.request_handlers[types.CallToolRequest] = _call_tool_handler
 
 
 session_manager = StreamableHTTPSessionManager(
