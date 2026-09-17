@@ -1,4 +1,4 @@
-mcp[cli]
+mcp[cli]==1.9.4
 uvicorn
 starlette
 httpx
